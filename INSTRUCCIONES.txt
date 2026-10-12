@@ -1,0 +1,14 @@
+Actualización puntual: límites de consultas y formato Markdown en respuestas.
+
+Desde la raíz del proyecto (donde están backend/ y frontend/):
+1. Haz respaldo de backend/app/services/rate_limit.py, backend/app/api/chat.py,
+   frontend/src/App.jsx, frontend/src/styles.css y frontend/package.json.
+2. Extrae este ZIP en la raíz con Expand-Archive -Force.
+3. En backend/.env agrega:
+   RATE_LIMIT_PER_MINUTE=30
+   MAX_CONCURRENT_REQUESTS=3
+4. En frontend ejecuta npm install (nuevas dependencias: react-markdown, remark-gfm).
+5. Reinicia el backend y Vite.
+6. Comprueba las preguntas y una respuesta Markdown con **negritas**.
+
+Este paquete NO cambia AgentGraph.jsx ni tu backend/.env ni los prompts.
