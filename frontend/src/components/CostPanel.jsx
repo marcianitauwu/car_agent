@@ -18,7 +18,7 @@ export default function CostPanel({ measurements, total }) {
         <tbody>
           {measurements.map((m, i) => (
             <tr key={i}>
-              <td>{m.agent}</td>
+              <td>{m.agent === 'synthesizer' ? 'Sintetizador' : m.agent}</td>
               <td>{number(m.input_tokens)}</td>
               <td>{number(m.output_tokens)}</td>
               <td>{usd(m.total_cost_usd)}</td>

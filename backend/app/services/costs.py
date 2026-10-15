@@ -20,6 +20,12 @@ def measure_usage(response: object, role: str, model: str) -> dict:
             pin = price('ROUTER_INPUT_PRICE_PER_M')
         if pout is None:
             pout = price('ROUTER_OUTPUT_PRICE_PER_M')
+            
+        """
+        Costo de entrada = tokens de entrada × tarifa de entrada / 1.000.000
+        Costo de salida  = tokens de salida  × tarifa de salida  / 1.000.000
+        Costo de la llamada = costo de entrada + costo de salida
+        """
     else:
         prefix = 'ROUTER' if role == 'orchestrator' else 'SPECIALIST'
         pin, pout = price(prefix + '_INPUT_PRICE_PER_M'), price(prefix + '_OUTPUT_PRICE_PER_M')

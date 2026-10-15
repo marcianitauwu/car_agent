@@ -15,6 +15,8 @@ const markdownComponents = {
 
 export default function App() {
   const [message, setMessage] = useState('');
+  const [submittedQuestion, setSubmittedQuestion] = useState('');
+  const [graphRun, setGraphRun] = useState(0);
   const [events, setEvents] = useState([]);
   const [active, setActive] = useState([]);
   const [done, setDone] = useState([]);
@@ -22,7 +24,8 @@ export default function App() {
   const [measurements, setMeasurements] = useState([]);
   const [total, setTotal] = useState(null);
   const [answer, setAnswer] = useState('');
-  const respuestaVisible = answer.replace(/[ \t]*\[doc-\d+\]/gi, '');
+  const visibleAnswer = answer.replace(/[ \t]*\[doc-\d+\]/gi, '');
+  const [searchResults, setSearchResults] = useState([]);
   const [blocked, setBlocked] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -63,6 +66,14 @@ export default function App() {
       setActive((old) => old.filter((id) => id !== event.agent));
       setDone((old) => [...new Set([...old, event.agent])]);
     }
+    if (event.type === 'collaboration_started') {
+      setActive((old) => [...new Set([...old, event.agent])]);
+      setDone((old) => old.filter((id) => id !== event.agent));
+    }
+    if (event.type === 'collaboration_contribution') {
+      setActive((old) => old.filter((id) => id !== event.agent));
+      setDone((old) => [...new Set([...old, event.agent])]);
+    }
     if (event.type === 'policy_review_done') {
       setActive((old) => old.filter((id) => id !== 'policy_review'));
       setDone((old) => [...new Set([...old, 'policy_review'])]);
@@ -70,6 +81,7 @@ export default function App() {
     if (event.type === 'usage') setMeasurements((old) => [...old, event.usage]);
     if (event.type === 'final') {
       setAnswer(event.answer);
+      setSearchResults(event.blocked ? [] : (event.search_results || []));
       setTotal(event.costs);
       setActive([]);
       setBlocked(Boolean(event.blocked));
@@ -86,11 +98,14 @@ export default function App() {
     searching.current.clear();
     setEvents([]);
     setActive([]);
-    setDone([]);
+    setDone(['user']);
+    setSubmittedQuestion(message.trim());
+    setGraphRun((old) => old + 1);
     setSelected([]);
     setMeasurements([]);
     setTotal(null);
     setAnswer('');
+    setSearchResults([]);
     setError('');
     setBlocked(false);
     setBusy(true);
@@ -137,9 +152,12 @@ export default function App() {
             done={done}
             selected={selected}
             blocked={blocked}
+            question={submittedQuestion}
+            runId={graphRun}
           />
           <p className="fine">
             Azul: ejecutando · Verde: completado · Rojo: bloqueado · Gris: no intervino.
+            {' '}
           </p>
         </section>
         <aside>
@@ -159,8 +177,22 @@ export default function App() {
                 skipHtml
                 components={markdownComponents}
               >
-                {respuestaVisible}
+                {visibleAnswer}
               </ReactMarkdown>
+            </div>
+          )}
+          {!error && !blocked && searchResults.length > 0 && (
+            <div className="search-evidence">
+              <h3>Documentos de Azure AI Search</h3>
+              <p className="fine">
+                JSON utilizado por cada agente para responder, después del filtrado de seguridad.
+              </p>
+              {searchResults.map(({ agent, documents }) => (
+                <details key={agent}>
+                  <summary>{({ comfort: 'Comodidad', consumption: 'Consumo', economy: 'Economía' })[agent] || agent} · {documents.length} documentos · Ver JSON</summary>
+                  <pre><code>{JSON.stringify(documents, null, 2)}</code></pre>
+                </details>
+              ))}
             </div>
           )}
         </section>

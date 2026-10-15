@@ -5,7 +5,7 @@ from agent_framework.openai import OpenAIChatClient
 from app.core.config import required, setting
 
 PROMPTS = Path(__file__).resolve().parents[1] / 'prompts'
-AGENT_KEYS = frozenset({'policy', 'orchestrator', 'comfort', 'consumption', 'economy'})
+AGENT_KEYS = frozenset({'policy', 'orchestrator', 'comfort', 'consumption', 'economy', 'synthesizer'})
 
 
 def create_agent(key: str) -> tuple[Agent, str]:

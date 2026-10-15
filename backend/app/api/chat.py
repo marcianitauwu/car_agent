@@ -10,8 +10,9 @@ from app.orchestration.workflow import build_workflow
 from app.agents.policy_agent import review_answers
 from app.services.audit import record_incident
 from app.services.costs import total_cost
+from app.services.grounded_comparison import grounded_comparison
 from app.services.rate_limit import limiter, concurrency_slots
-from app.services.security import refusal
+from app.services.security import refusal, review_reason
 
 router = APIRouter(prefix='/api', tags=['Agentes'])
 log = logging.getLogger(__name__)
@@ -72,7 +73,13 @@ async def chat_stream(body: ChatRequest, request: Request):
             if not decision:
                 raise RuntimeError('No se produjo ruta valida')
             ordered = [responses[key] for key in decision if key in responses]
-            if len(ordered) != len(decision) or any(x.get('invalid') for x in ordered):
+            needs_joint = (len(ordered) == len(decision) and len(decision) == 2
+                           and all(x['documents'] and not x.get('invalid') for x in ordered))
+            if needs_joint:
+                if 'synthesizer' in responses:
+                    ordered.append(responses['synthesizer'])
+            expected = len(decision) + int(needs_joint)
+            if len(ordered) != expected or any(x.get('invalid') for x in ordered):
                 record_incident(request_id, 'unsafe_output', 'blocked_output')
                 yield sse({'type': 'policy_blocked', 'category': 'unsafe_output',
                            'message': refusal('unsafe_output')})
@@ -104,19 +111,56 @@ async def chat_stream(body: ChatRequest, request: Request):
                 return
             measurements.append(usage)
             yield sse({'type': 'usage', 'usage': usage})
+            # Una sola recuperacion; nunca convertir un rechazo en aprobacion local.
+            if (not verdict.approved and getattr(verdict, 'reason_code', '') in
+                    ('contradictory_evidence', 'unsupported_claim')):
+                affected = set(getattr(verdict, 'affected_agents', []))
+                repaired = []
+                changed = False
+                for item in ordered:
+                    replacement = (grounded_comparison(item, body.message)
+                                   if item['agent'] in affected else None)
+                    repaired.append(replacement or item)
+                    changed = changed or replacement is not None
+                if changed:
+                    yield sse({'type': 'answer_repair',
+                               'detail': 'Recalculando la comparación con los datos recuperados y revisando de nuevo.'})
+                    try:
+                        retry_verdict, retry_usage = await review_answers(body.message, repaired)
+                    except Exception:
+                        # Se conserva el rechazo original si la nueva revision falla.
+                        pass
+                    else:
+                        measurements.append(retry_usage)
+                        yield sse({'type': 'usage', 'usage': retry_usage})
+                        verdict = retry_verdict
+                        ordered = repaired
+                        responses.update({item['agent']: item for item in ordered})
             if not verdict.approved:
-                record_incident(request_id, verdict.category, 'blocked_output')
+                reason_code = getattr(verdict, 'reason_code', 'unspecified')
+                affected_agents = getattr(verdict, 'affected_agents', [])
+                detail = review_reason(reason_code, affected_agents)
+                message = refusal(verdict.category) + ' ' + detail
+                record_incident(request_id, verdict.category, 'blocked_output', reason_code, affected_agents)
                 yield sse({'type': 'policy_blocked', 'category': verdict.category,
-                           'message': refusal(verdict.category)})
-                yield sse({'type': 'final', 'answer': refusal(verdict.category),
+                           'reason_code': reason_code, 'affected_agents': affected_agents,
+                           'detail': detail, 'message': message})
+                yield sse({'type': 'final', 'answer': message,
                            'selected_agents': decision, 'blocked': True,
                            'costs': total_cost(measurements), 'measurements': measurements})
                 return
             yield sse({'type': 'policy_review_done'})
             answer = '\n\n'.join(f'### {key.upper()}\n{responses[key]["answer"]}' for key in decision)
+            joint = next((item for item in ordered if item['agent'] == 'synthesizer'), None)
+            if joint:
+                answer += '\n\n### Respuesta conjunta\n' + joint['answer']
             yield sse({'type': 'final', 'answer': answer, 'selected_agents': decision,
                        'blocked': False, 'costs': total_cost(measurements),
-                       'measurements': measurements})
+                       'measurements': measurements,
+                       'search_results': [
+                           {'agent': key, 'documents': responses[key]['documents']}
+                           for key in decision
+                       ]})
         except asyncio.CancelledError:
             raise
         except Exception as exc:

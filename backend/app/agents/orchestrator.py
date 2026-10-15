@@ -14,6 +14,8 @@ async def choose_agents(question: str) -> tuple[RoutingDecision, dict]:
         text = text.strip('`').removeprefix('json').strip()
     try:
         decision = RoutingDecision.model_validate({**json.loads(text), 'question': question})
+        if set(decision.search_plans) != set(decision.agents):
+            raise ValueError('Falta el plan de búsqueda de un especialista')
     except Exception as exc:
         raise ValueError(f'El orquestador no devolvio la decision JSON esperada: {text[:300]}') from exc
     usage = measure_usage(response, 'orchestrator', model)

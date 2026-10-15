@@ -15,6 +15,25 @@ DENIALS = {
     'unknown': 'No pude verificar que la solicitud cumple las politicas. Intenta reformularla.',
 }
 
+REVIEW_REASONS = {
+    'unsupported_claim': 'Una afirmación no está respaldada por los documentos recuperados.',
+    'contradictory_evidence': 'La respuesta contradice un dato de los documentos recuperados.',
+    'invalid_citation': 'Una referencia no corresponde a los documentos de esa respuesta.',
+    'criteria_mismatch': 'Se recomendó una opción que no cumple un requisito de tu consulta.',
+    'unsafe_content': 'La respuesta incluye contenido restringido.',
+    'instruction_injection': 'La respuesta siguió instrucciones no autorizadas.',
+    'invalid_review': 'El revisor no devolvió una evaluación válida.',
+    'unspecified': 'El revisor rechazó la salida sin especificar un motivo concreto.',
+}
+
+
+def review_reason(reason_code: str, affected_agents: list[str]) -> str:
+    labels = {'comfort': 'Comodidad', 'consumption': 'Consumo',
+              'economy': 'Economía', 'synthesizer': 'Sintetizador'}
+    detail = REVIEW_REASONS.get(reason_code, REVIEW_REASONS['unspecified'])
+    names = [labels[key] for key in affected_agents if key in labels]
+    return detail + (' Respuesta afectada: ' + ', '.join(names) + '.' if names else '')
+
 
 def normalized(value: str) -> str:
     plain = unicodedata.normalize('NFKD', value)

@@ -62,6 +62,12 @@ Abrir `http://localhost:5173/`.
 4. No copies `.venv` ni `node_modules`; cada instalación resuelve sus propias dependencias.
 5. Reinicia backend y frontend después de cambiar el código.
 
+Las consultas ordenadas por precio recuperan hasta 20 opciones por defecto, para
+evitar que un empate entre los primeros tres resultados oculte el resto de la lista.
+Puedes configurar `AZURE_SEARCH_RANKING_TOP` en `backend/.env` (entre 1 y 50).
+La respuesta indica que muestra los resultados recuperados; no representa
+necesariamente todo el catálogo. Las otras consultas mantienen su límite de tres.
+
 ## Archivos nuevos y actualizados
 
 - `app/agents/policy_agent.py`: llamadas del agente de políticas de entrada y salida (un mismo rol).

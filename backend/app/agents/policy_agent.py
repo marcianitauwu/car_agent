@@ -37,6 +37,12 @@ async def review_answers(question: str, results: list[dict]) -> tuple[PolicyRevi
         review = PolicyReview.model_validate(_parse_json(response.text))
         if (review.approved and review.category != 'allowed') or (not review.approved and review.category == 'allowed'):
             raise ValueError('Revisión inconsistente')
+        if (review.approved and (review.reason_code not in ('none', 'unspecified') or review.affected_agents)):
+            raise ValueError('Aprobación con incidencias')
+        if not review.approved and review.reason_code == 'none':
+            raise ValueError('Bloqueo sin motivo')
+        if not set(review.affected_agents).issubset({item['agent'] for item in results}):
+            raise ValueError('Agente ajeno a la revisión')
     except Exception:
-        review = PolicyReview(approved=False, category='unknown')
+        review = PolicyReview(approved=False, category='unknown', reason_code='invalid_review')
     return review, usage
